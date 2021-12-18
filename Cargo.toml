@@ -1,0 +1,11 @@
+[package]
+name = "hole"
+version = "0.1.0"
+authors = ["erin petra sofiya moon <erin@hecke.rs>"]
+edition = "2021"
+
+[dependencies]
+structopt = "0.3"
+color-eyre = "0.5"
+tracing = "0.1"
+tracing-subscriber = "0.2"
