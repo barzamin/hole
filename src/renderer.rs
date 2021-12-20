@@ -10,6 +10,7 @@ pub struct GfxState {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub size: PhysicalSize<u32>,
+    pub pipeline: wgpu::RenderPipeline,
 
     pub t0: Instant,
 }
@@ -53,6 +54,52 @@ impl GfxState {
         };
         surface.configure(&device, &surf_cfg);
 
+        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: Some("main shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        });
+
+        let pipe_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("render pipeline layout"),
+            bind_group_layouts: &[],
+            push_constant_ranges: &[],
+        });
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("render pipeline"),
+            layout: Some(&pipe_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vtx_main",
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "frag_main",
+                targets: &[wgpu::ColorTargetState {
+                    format: surf_cfg.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                }],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: true,
+            },
+            multiview: None,
+        });
+
         let t0 = Instant::now();
 
         Ok(Self {
@@ -63,6 +110,7 @@ impl GfxState {
             adapter,
             device,
             queue,
+            pipeline,
             t0,
         })
     }
@@ -111,6 +159,9 @@ impl GfxState {
                 }],
                 depth_stencil_attachment: None,
             });
+
+            render_pass.set_pipeline(&self.pipeline);
+            render_pass.draw(0..3, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
