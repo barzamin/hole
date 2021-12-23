@@ -1,6 +1,25 @@
 use winit::{dpi::PhysicalSize, event::WindowEvent, window::Window};
+use tracing::info;
 use std::time::Instant;
 use color_eyre::eyre::{Result, eyre};
+use wgpu::util::DeviceExt;
+use crate::types::Vertex;
+
+
+const VERTICES: &[Vertex] = &[
+    Vertex { pos: [-0.0868241, 0.49240386, 0.0], color: [0.5, 0.0, 0.5] }, // A
+    Vertex { pos: [-0.49513406, 0.06958647, 0.0], color: [0.5, 0.0, 0.5] }, // B
+    Vertex { pos: [-0.21918549, -0.44939706, 0.0], color: [0.5, 0.0, 0.5] }, // C
+    Vertex { pos: [0.35966998, -0.3473291, 0.0], color: [0.5, 0.0, 0.5] }, // D
+    Vertex { pos: [0.44147372, 0.2347359, 0.0], color: [0.5, 0.0, 0.5] }, // E
+];
+
+const INDICES: &[u16] = &[
+    0, 1, 4,
+    1, 2, 4,
+    2, 3, 4,
+    /* padding */ 0,
+];
 
 pub struct GfxState {
     pub instance: wgpu::Instance,
@@ -11,6 +30,10 @@ pub struct GfxState {
     pub queue: wgpu::Queue,
     pub size: PhysicalSize<u32>,
     pub pipeline: wgpu::RenderPipeline,
+
+    // buffers
+    pub vtx_buffer: wgpu::Buffer,
+    pub idx_buffer: wgpu::Buffer, 
 
     pub t0: Instant,
 }
@@ -71,7 +94,9 @@ impl GfxState {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vtx_main",
-                buffers: &[],
+                buffers: &[
+                    Vertex::layout(),
+                ],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -100,6 +125,18 @@ impl GfxState {
             multiview: None,
         });
 
+        let vtx_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("vtx buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let idx_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("idx buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
         let t0 = Instant::now();
 
         Ok(Self {
@@ -111,11 +148,16 @@ impl GfxState {
             device,
             queue,
             pipeline,
+
+            vtx_buffer,
+            idx_buffer,
+
             t0,
         })
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
+        info!(new_size=?new_size, "resizing window");
         if new_size.width > 0 && new_size.height > 0 {
             self.size = new_size;
             self.surf_cfg.width  = new_size.width;
@@ -161,7 +203,9 @@ impl GfxState {
             });
 
             render_pass.set_pipeline(&self.pipeline);
-            render_pass.draw(0..3, 0..1);
+            render_pass.set_vertex_buffer(0, self.vtx_buffer.slice(..));
+            render_pass.set_index_buffer(self.idx_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..(INDICES.len() as u32), 0, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

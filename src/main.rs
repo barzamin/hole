@@ -7,7 +7,9 @@ use winit::{
     window::WindowBuilder,
 };
 
+mod types;
 mod renderer;
+mod camera;
 use renderer::GfxState;
 
 fn main() -> Result<()> {
